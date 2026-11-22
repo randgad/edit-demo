@@ -44,11 +44,28 @@ p{margin:10px 0 0;color:var(--mut);font-size:14px;min-height:1.3em}
   }
   let saved = null; try { saved = sessionStorage.getItem('demo-pw'); } catch (e) {}
   if (saved) { try { await open(saved); return; } catch (e) {} }
+  // 5 wrong passwords -> 1 minute cool-down (kept in localStorage, shared with the page's own lock form)
+  const COOL = {mem: {}, get() { try { return JSON.parse(localStorage.getItem('demo-fail') || '{}'); } catch (e) { return this.mem; } },
+    set(v) { this.mem = v; try { localStorage.setItem('demo-fail', JSON.stringify(v)); } catch (e) {} },
+    left() { return Math.max(0, (this.get().until || 0) - Date.now()); },
+    fail() { const s = this.get(); s.n = (s.n || 0) + 1; if (s.n >= 5) { s.until = Date.now() + 60000; s.n = 0; } this.set(s); return this.left(); },
+    ok() { this.set({}); }};
+  function coolDown(btn, input, msg) {
+    const tick = () => { const l = COOL.left();
+      if (l > 0) { btn.disabled = true; input.disabled = true;
+        msg.textContent = 'Too many wrong tries. Try again in ' + Math.ceil(l / 1000) + ' s.'; setTimeout(tick, 500); }
+      else { btn.disabled = false; input.disabled = false; msg.textContent = ''; input.focus(); } };
+    tick();
+  }
   const f = document.getElementById('f'), pw = document.getElementById('pw'), m = document.getElementById('m');
+  const b0 = f.querySelector('button');
+  if (COOL.left() > 0) coolDown(b0, pw, m);
   f.addEventListener('submit', async e => {
-    e.preventDefault(); const b = f.querySelector('button'); b.disabled = true; m.textContent = 'Unlocking…';
-    try { await open(pw.value); }
-    catch (err) { m.textContent = 'That password is not right. Try again.'; pw.select(); b.disabled = false; }
+    e.preventDefault(); if (COOL.left() > 0) return coolDown(b0, pw, m);
+    b0.disabled = true; m.textContent = 'Unlocking…';
+    try { await open(pw.value); COOL.ok(); }
+    catch (err) { if (COOL.fail() > 0) { pw.value = ''; return coolDown(b0, pw, m); }
+      m.textContent = 'That password is not right. Try again.'; pw.select(); b0.disabled = false; }
   });
 })();
 </script>

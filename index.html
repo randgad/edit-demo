@@ -30,13 +30,13 @@ p{margin:10px 0 0;color:var(--mut);font-size:14px;min-height:1.3em}
 </form>
 <script>
 (async function(){
-  const meta = await fetch('meta.json').then(r => r.json());
+  const meta = await fetch('meta.json', {cache: 'no-store'}).then(r => r.json());   // never a cached copy
   async function open(pw){
     const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
     const salt = Uint8Array.from(atob(meta.salt), c => c.charCodeAt(0));
     const key = await crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:meta.iterations, hash:'SHA-256'},
       base, {name:'AES-GCM', length:256}, false, ['decrypt']);
-    const buf = new Uint8Array(await (await fetch('page.enc')).arrayBuffer());
+    const buf = new Uint8Array(await (await fetch('page.enc?v=' + (meta.build || ''))).arrayBuffer());
     const html = new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM', iv:buf.slice(0,12)}, key, buf.slice(12)));
     window.__DEMO_PW = pw;
     try { sessionStorage.setItem('demo-pw', pw); } catch (e) {}
